@@ -2,8 +2,8 @@ from googleapiclient.discovery import build
 from google.oauth2.service_account import Credentials
 
 # Google Sheets API Configuration
-SERVICE_ACCOUNT_FILE = "E:/SANI AI/API/sani-454318-cd861dbde471.json"
-SPREADSHEET_ID = "1VgRXMYeyQs5HqPU0wXpa2rv1NUvkmz9Z74UOThkibvY"
+SERVICE_ACCOUNT_FILE = "Your API file location.json"
+SPREADSHEET_ID = "Enter your own Spreadsheet API"
 
 def authenticate_google_sheets():
     """Authenticates and returns a Google Sheets API service object."""
