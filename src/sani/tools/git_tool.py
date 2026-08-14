@@ -120,6 +120,33 @@ class GitTool:
 
         return True, "Pre-operation secret scan passed cleanly.", []
 
+    def list_unpushed_files(self, workspace_root: str, remote: str = "origin", branch: str | None = None) -> tuple[int, list[str]]:
+        """Return (commit_count, file_list) for commits ahead of remote.
+
+        Useful for showing the user what a push would upload before they confirm.
+        """
+        branch = branch or self.get_current_branch(workspace_root)
+        if not branch:
+            return 0, []
+
+        # Count commits ahead of remote
+        ok, count_out = self._run_git(
+            ["rev-list", "--count", f"{remote}/{branch}..HEAD"], cwd=workspace_root
+        )
+        commit_count = int(count_out) if ok and count_out.strip().isdigit() else 0
+        if commit_count == 0:
+            return 0, []
+
+        # List changed files across all unpushed commits
+        ok, files_out = self._run_git(
+            ["diff", "--name-only", f"{remote}/{branch}..HEAD"], cwd=workspace_root
+        )
+        files: list[str] = []
+        if ok and files_out:
+            files = [f.strip() for f in files_out.splitlines() if f.strip()]
+
+        return commit_count, files
+
     def push(self, workspace_root: str, remote: str = "origin", branch: str | None = None) -> tuple[bool, str]:
         """Push commits to remote repository with pre-push safety and secret checks."""
         # 1. Pre-push secret check

@@ -45,7 +45,6 @@ class CommandRouter:
             "push it now",
             "push it",
             "please push",
-            "go ahead",
             "confirm execution",
         }
         return (
@@ -99,25 +98,39 @@ class CommandRouter:
 
         config = getattr(self.agent, "config", None)
         git_tool = getattr(self.agent, "git_tool", None)
-        if config and git_tool:
-            workspace_root = str(config.workspace_root)
-            remote_url = git_tool.get_remote_url(workspace_root)
-            if not remote_url:
-                return CommandOutcome(True, "Cannot push to GitHub: No remote repository configured.", assessment)
+        if not config or not git_tool:
+            return CommandOutcome(True, "Push system is not configured.", assessment)
 
-            is_safe, safety_msg, sensitive_files = git_tool.inspect_pre_operation_safety(workspace_root)
-            if not is_safe:
-                return CommandOutcome(True, f"Push blocked for safety: {safety_msg}", assessment)
+        workspace_root = str(config.workspace_root)
 
-        pending = PendingConfirmation("git_push", {"remote": "origin", "branch": None}, user.user_id, origin)
+        # Check remote
+        remote_url = git_tool.get_remote_url(workspace_root)
+        if not remote_url:
+            return CommandOutcome(True, "Cannot push to GitHub: No remote repository configured.", assessment)
+
+        # Check for BOTH uncommitted changes AND unpushed commits
+        ok, status_out = git_tool._run_git(["status", "--porcelain"], cwd=workspace_root)
+        has_uncommitted = bool(ok and status_out and status_out.strip())
+        commit_count, unpushed_files = git_tool.list_unpushed_files(workspace_root)
+        has_unpushed = commit_count > 0
+
+        if not has_uncommitted and not has_unpushed:
+            return CommandOutcome(True, "Everything is already up-to-date with GitHub. Nothing to push.", assessment)
+
+        # Launch the interactive push workflow with GUI
+        from sani.tools.push_workflow import PushWorkflowEngine
+        workflow = PushWorkflowEngine(git_tool, workspace_root)
+
         if origin == InputOrigin.VOICE:
-            self.pending = pending
-            return CommandOutcome(True, "I can push the current branch to GitHub. Say 'confirm push' to continue.", assessment)
-        decision, result = self.agent.request_tool_execution("git_push", pending.arguments, user, origin=origin)
-        if result is not None:
-            ok, detail = result
-            return CommandOutcome(True, "GitHub push completed." if ok else f"GitHub push failed: {detail}", assessment)
-        if decision.decision.value == "REQUIRES_CONFIRMATION":
-            self.pending = pending
-            return CommandOutcome(True, "This action requires confirmation. Type 'confirm push' to continue.", assessment)
-        return CommandOutcome(True, f"GitHub push was not executed: {decision.reason}", assessment)
+            # Announce what was found, then open the GUI
+            parts = []
+            if has_uncommitted:
+                parts.append("uncommitted changes")
+            if has_unpushed:
+                parts.append(f"{commit_count} unpushed commit(s)")
+            summary = " and ".join(parts)
+            msg = f"I found {summary}. Opening the push review window now."
+            print(f"SANI > {msg}")
+
+        ok, result_msg = workflow.run_interactive()
+        return CommandOutcome(True, result_msg, assessment)

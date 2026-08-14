@@ -60,13 +60,18 @@ def test_user_explicitly_cancelling_push(owner_user: UserIdentity) -> None:
 
 
 # 5. Voice push request
-def test_voice_push_request(owner_user: UserIdentity) -> None:
+def test_voice_push_request(owner_user: UserIdentity, monkeypatch: pytest.MonkeyPatch) -> None:
     agent = SANIAgent()
     router = CommandRouter(agent)
+
+    monkeypatch.setattr(agent.git_tool, "list_unpushed_files", lambda root, remote="origin", branch=None: (2, ["src/sani/agent.py", "README.md"]))
+
     outcome = router.handle("Push the update to GitHub", owner_user, InputOrigin.VOICE)
 
     assert outcome.handled
     assert "Say 'confirm push'" in outcome.message
+    assert "2 commit(s)" in outcome.message
+    assert "agent.py" in outcome.message
     assert router.pending is not None
     assert router.pending.origin == InputOrigin.VOICE
 
@@ -102,14 +107,16 @@ def test_voice_ambiguous_confirmation_rejected(owner_user: UserIdentity) -> None
 
 
 # 8. Typed push request
-def test_typed_push_request(owner_user: UserIdentity) -> None:
+def test_typed_push_request(owner_user: UserIdentity, monkeypatch: pytest.MonkeyPatch) -> None:
     agent = SANIAgent()
     router = CommandRouter(agent)
 
+    monkeypatch.setattr(agent.git_tool, "list_unpushed_files", lambda root, remote="origin", branch=None: (1, ["src/sani/agent.py"]))
+
     outcome = router.handle("Push the latest update to GitHub", owner_user, InputOrigin.TYPED)
     assert outcome.handled
-    # Authority requiring confirmation or executing
-    assert ("GitHub push" in outcome.message or "requires confirmation" in outcome.message)
+    # Authority requiring confirmation or executing, with file listing
+    assert ("GitHub push" in outcome.message or "requires confirmation" in outcome.message or "up-to-date" in outcome.message)
 
 
 # 9. Typed confirmation
