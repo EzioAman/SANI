@@ -1,4 +1,4 @@
-"""Headless Audio Player Subsystem with Calibrated Mic Interruption (Barge-in)."""
+"""Headless Audio Player Subsystem with Speaker-Bleed Shield & Barge-In Interruption."""
 
 import io
 import numpy as np
@@ -12,14 +12,15 @@ except ImportError:
 
 
 class AudioPlayer:
-    """Plays audio streams headlessly with calibrated mic sensitivity for instant user interruption."""
+    """Plays audio streams headlessly with speaker-bleed echo shield for uninterrupted SANI speech."""
 
     def __init__(
         self,
-        interruption_threshold_rms: float = 0.008,
+        interruption_threshold_rms: float = 0.040,
         sample_rate: int = 16000,
         enable_barge_in: bool = True,
     ) -> None:
+        # Threshold set to 0.040 RMS: Above laptop speaker bleed (0.015 RMS) but below human speech (0.040+ RMS)
         self.interruption_threshold_rms = interruption_threshold_rms
         self.sample_rate = sample_rate
         self.enable_barge_in = enable_barge_in
@@ -45,7 +46,7 @@ class AudioPlayer:
         raise ValueError("Unable to decode audio bytes: soundfile and miniaudio failed.")
 
     def play_bytes(self, audio_bytes: bytes) -> bool:
-        """Play audio bytes headlessly while monitoring microphone for intentional user interruption.
+        """Play audio bytes headlessly while monitoring microphone for intentional user speech.
         
         Returns:
             True if audio played to full completion.
@@ -66,22 +67,23 @@ class AudioPlayer:
 
             total_samples = len(pcm_array)
             position = 0
-            # 200ms grace period to avoid initial audio burst false-positives
-            grace_period_samples = int(playback_sample_rate * 0.20)
+            # 350ms initial playback grace period to prevent audio startup burst false-positives
+            grace_period_samples = int(playback_sample_rate * 0.35)
 
             with sd.OutputStream(samplerate=playback_sample_rate, channels=nchannels, dtype="float32") as out_stream, \
                  sd.InputStream(samplerate=self.sample_rate, channels=1, dtype="float32") as mic_stream:
 
                 while position < total_samples and self._is_playing:
-                    # Check mic interruption after 200ms grace period
+                    # Check mic interruption after 350ms grace period
                     if self.enable_barge_in and position > grace_period_samples:
                         try:
                             mic_chunk, _ = mic_stream.read(mic_chunk_size)
                             rms = float(np.sqrt(np.mean(mic_chunk**2)))
 
+                            # Require RMS > 0.040 (intentional human vocal volume)
                             if rms > self.interruption_threshold_rms:
                                 consecutive_user_speech_chunks += 1
-                                if consecutive_user_speech_chunks >= 1:
+                                if consecutive_user_speech_chunks >= 2:
                                     print("\n[Voice] Interrupted by Aman! Stopping speech immediately...")
                                     self._interrupted = True
                                     self._is_playing = False
