@@ -1,4 +1,4 @@
-"""Headless Audio Player Subsystem with Robust Real-time Interruption (Barge-in)."""
+"""Headless Audio Player Subsystem with Balanced Real-time Interruption (Barge-in)."""
 
 import io
 import numpy as np
@@ -12,9 +12,9 @@ except ImportError:
 
 
 class AudioPlayer:
-    """Plays audio streams headlessly with robust real-time microphone interruption detection."""
+    """Plays audio streams headlessly with balanced real-time microphone interruption detection."""
 
-    def __init__(self, interruption_threshold_rms: float = 0.085, sample_rate: int = 16000) -> None:
+    def __init__(self, interruption_threshold_rms: float = 0.055, sample_rate: int = 16000) -> None:
         self.interruption_threshold_rms = interruption_threshold_rms
         self.sample_rate = sample_rate
         self._is_playing = False
@@ -62,8 +62,8 @@ class AudioPlayer:
 
             total_samples = len(pcm_array)
             position = 0
-            # Ignore mic interruption during initial 300ms playback to prevent speaker echo false-positives
-            grace_period_samples = int(playback_sample_rate * 0.3)
+            # Ignore mic interruption during initial 350ms playback chunk to prevent speaker echo false-positives
+            grace_period_samples = int(playback_sample_rate * 0.35)
 
             with sd.OutputStream(samplerate=playback_sample_rate, channels=nchannels, dtype="float32") as out_stream, \
                  sd.InputStream(samplerate=self.sample_rate, channels=1, dtype="float32") as mic_stream:

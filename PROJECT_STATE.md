@@ -91,19 +91,22 @@ The LLM must not receive unrestricted direct control over the operating system. 
 | 9 | Implement SANI Core Agent Orchestration & Verification Suite | Done | Y | Created `SANIAgent` orchestrator and full test suite (`tests/`). Verified 12/12 tests passing. |
 | 10 | Build Non-Authoritative Voice Pipeline | Done | Y | Implemented `AudioRecorder` with silence RMS detection, `GeminiSTTProvider`, `EdgeTTSProvider`, `AudioPlayer`, and `VoicePipeline` (Microphone -> STT -> SANI -> TTS -> Speaker). Voice is strictly informational with zero execution authority. |
 | 11 | Select Local Voice Stack | Confirmed | Y | Selected Moonshine for local speech-to-text (STT) and Kokoro for local text-to-speech (TTS), targeting smooth CPU-only laptop operation. |
-| 12 | Build Headless Audio, Interruption & Hands-Free Control | Done | Y | Updated STT with Chat API (eliminating AFC warning), added startup mic/voice display, hands-free vocal voice switching ("change voice", "switch to Aria/Neerja"), and hands-free microphone switching. Verified 15/15 unit tests passing. |
+| 12 | Build Headless Audio, Interruption & Hands-Free Control | Done | Y | Updated STT with Chat API (eliminating AFC warning), added startup mic/voice display, hands-free vocal voice switching, and hands-free microphone switching. |
+| 13 | Build Smart Intent Classifier, Pre-Push Audit & Hands-Free GitHub Push | Done | Y | Implemented `SmartIntentClassifier` (`src/sani/voice/intent.py`) categorizing speech into `CHAT`, `CONFIG_VOICE`, `CONFIG_MIC`, `GIT_PUSH`, `PROJECT_AUDIT`, and `EXIT`. Built `GitTool` (`src/sani/tools/git_tool.py`) with automatic `git.exe` resolution, configured Git identity `EzioAman`, created initial commit `6d8ce34`, and set remote `origin` to `https://github.com/EzioAman/SANI.git`. Integrated hands-free vocal audit and GitHub push workflow into `VoicePipeline`. Verified 19/19 unit tests passing. |
 
 ## 6. Current State
-- Last completed step: Step 12 — Build Headless Audio, Interruption & Hands-Free Control
-- Currently working on: Step 13 — Next capability phase (Screen/Vision context & environment understanding)
+- Last completed step: Step 13 — Build Smart Intent Classifier, Pre-Push Audit & Hands-Free GitHub Push
+- Currently working on: Step 14 — Next capability phase (Screen/Vision context & environment understanding)
 - Project directory: `E:\Projects\SANI`
 - Current IDE: Antigravity IDE
 - Current terminal: Antigravity integrated PowerShell
 - Python version: 3.12.7
 - uv version: 0.12.4
 - Git version: 2.55.0.windows.4
+- Remote GitHub Repository: `https://github.com/EzioAman/SANI.git` (branch: `main`)
+- Initial Git Commit: `6d8ce34 feat: Baseline SANI Agent Core, Authority Engine, SQLite Store, & Smart Voice Subsystem`
 - Dependencies: `openai-agents`, `pytest`, `pydantic`, `google-genai`, `sounddevice`, `soundfile`, `miniaudio`, `numpy`, `edge-tts`, `pyttsx3`
-- Authority Engine, Tool Execution Runtime, SQLite Memory Store, Replaceable Interfaces, Headless Voice Engine, Interruption Subsystem, and Hands-Free Voice/Mic Control built and verified with 15/15 passing unit test suite
+- Authority Engine, Tool Execution Runtime, SQLite Memory Store, Replaceable Interfaces, Headless Voice Engine, Interruption Subsystem, Smart Intent Classifier, Git Tool, and Hands-Free GitHub Push workflow built and verified with 19/19 passing unit test suite
 - Blockers: None
 
 ## 7. Open Questions
