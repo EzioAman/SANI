@@ -75,15 +75,16 @@ def test_voice_push_request(owner_user: UserIdentity) -> None:
 def test_voice_confirmation(owner_user: UserIdentity, monkeypatch: pytest.MonkeyPatch) -> None:
     agent = SANIAgent()
     router = CommandRouter(agent)
-    router.pending = PendingConfirmation("git_push", {"remote": "origin", "branch": "main"}, owner_user.user_id, InputOrigin.VOICE)
 
     monkeypatch.setattr(agent.git_tool, "push", lambda root, remote="origin", branch=None: (True, "Everything up-to-date"))
     monkeypatch.setattr(agent.git_tool, "inspect_pre_operation_safety", lambda root: (True, "OK", []))
 
-    outcome = router.handle("confirm push", owner_user, InputOrigin.VOICE)
-    assert outcome.handled
-    assert "GitHub push completed" in outcome.message
-    assert router.pending is None
+    for confirm_phrase in ["confirm push", "Confirm push.", "Confirm push!", "Yes, push it."]:
+        router.pending = PendingConfirmation("git_push", {"remote": "origin", "branch": "main"}, owner_user.user_id, InputOrigin.VOICE)
+        outcome = router.handle(confirm_phrase, owner_user, InputOrigin.VOICE)
+        assert outcome.handled
+        assert "GitHub push completed" in outcome.message
+        assert router.pending is None
 
 
 # 7. Voice ambiguous confirmation rejected

@@ -30,12 +30,46 @@ class CommandRouter:
         self.pending: PendingConfirmation | None = None
 
     @staticmethod
-    def _is_confirmation(text: str) -> bool:
-        return text.strip().lower() in {"yes", "confirm", "confirm push", "yes, push it", "yes push it", "push it now"}
+    def _clean_text(text: str) -> str:
+        import re
+        return re.sub(r"[^\w\s]", "", text).strip().lower()
 
-    @staticmethod
-    def _is_cancellation(text: str) -> bool:
-        return text.strip().lower() in {"cancel", "never mind", "forget it", "don't do that", "dont do that", "abort"}
+    def _is_confirmation(self, text: str) -> bool:
+        cleaned = self._clean_text(text)
+        valid_confirmations = {
+            "yes",
+            "confirm",
+            "confirm push",
+            "yes push it",
+            "yes push",
+            "push it now",
+            "push it",
+            "please push",
+            "go ahead",
+            "confirm execution",
+        }
+        return (
+            cleaned in valid_confirmations
+            or "confirm push" in cleaned
+            or "yes push" in cleaned
+        )
+
+    def _is_cancellation(self, text: str) -> bool:
+        cleaned = self._clean_text(text)
+        valid_cancellations = {
+            "cancel",
+            "never mind",
+            "forget it",
+            "dont do that",
+            "do not do that",
+            "abort",
+            "stop",
+        }
+        return (
+            cleaned in valid_cancellations
+            or cleaned.startswith("cancel")
+            or "dont do" in cleaned
+        )
 
     def handle(self, text: str, user: UserIdentity, origin: InputOrigin) -> CommandOutcome:
         if self.pending:
