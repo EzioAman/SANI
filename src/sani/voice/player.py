@@ -1,4 +1,4 @@
-"""Headless Audio Player Subsystem with Robust Self-Echo Shield & Optional Interruption."""
+"""Headless Audio Player Subsystem with Calibrated Mic Interruption (Barge-in)."""
 
 import io
 import numpy as np
@@ -12,11 +12,11 @@ except ImportError:
 
 
 class AudioPlayer:
-    """Plays audio streams headlessly with speaker echo shield and real-time interruption."""
+    """Plays audio streams headlessly with calibrated mic sensitivity for instant user interruption."""
 
     def __init__(
         self,
-        interruption_threshold_rms: float = 0.15,
+        interruption_threshold_rms: float = 0.008,
         sample_rate: int = 16000,
         enable_barge_in: bool = True,
     ) -> None:
@@ -66,13 +66,14 @@ class AudioPlayer:
 
             total_samples = len(pcm_array)
             position = 0
-            grace_period_samples = int(playback_sample_rate * 0.5)
+            # 200ms grace period to avoid initial audio burst false-positives
+            grace_period_samples = int(playback_sample_rate * 0.20)
 
             with sd.OutputStream(samplerate=playback_sample_rate, channels=nchannels, dtype="float32") as out_stream, \
                  sd.InputStream(samplerate=self.sample_rate, channels=1, dtype="float32") as mic_stream:
 
                 while position < total_samples and self._is_playing:
-                    # Check mic interruption ONLY if barge-in is enabled and after initial playback grace period
+                    # Check mic interruption after 200ms grace period
                     if self.enable_barge_in and position > grace_period_samples:
                         try:
                             mic_chunk, _ = mic_stream.read(mic_chunk_size)
@@ -80,7 +81,7 @@ class AudioPlayer:
 
                             if rms > self.interruption_threshold_rms:
                                 consecutive_user_speech_chunks += 1
-                                if consecutive_user_speech_chunks >= 3:
+                                if consecutive_user_speech_chunks >= 1:
                                     print("\n[Voice] Interrupted by Aman! Stopping speech immediately...")
                                     self._interrupted = True
                                     self._is_playing = False
