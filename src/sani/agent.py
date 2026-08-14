@@ -79,11 +79,42 @@ class SANIAgent:
 
     def _register_default_tools(self) -> None:
         """Register built-in system tools with explicit risk levels."""
+        from sani.tools.system_tools import (
+            git_publish,
+            git_set_remote,
+            inspect_system_status,
+            inspect_system_tools,
+        )
+
         self.tool_registry.register(
             name="git_push",
             description="Push the checked-out branch to the configured Git remote.",
             risk_level=ActionRiskLevel.SYSTEM_CHANGING,
             func=lambda remote="origin", branch=None: self.git_tool.push(str(self.config.workspace_root), remote, branch),
+        )
+        self.tool_registry.register(
+            name="git_publish",
+            description="Publish the project to GitHub (sets remote if provided, security scans, opens interactive review window, stages, commits, and pushes).",
+            risk_level=ActionRiskLevel.DESTRUCTIVE,
+            func=lambda remote_url=None: git_publish(self, remote_url=remote_url),
+        )
+        self.tool_registry.register(
+            name="git_set_remote",
+            description="Set or update the Git remote URL for GitHub publishing.",
+            risk_level=ActionRiskLevel.SYSTEM_CHANGING,
+            func=lambda remote_url, remote_name="origin": git_set_remote(self, remote_url, remote_name),
+        )
+        self.tool_registry.register(
+            name="inspect_system_tools",
+            description="Inspect all tools registered in SANI with their descriptions, parameters, and risk levels.",
+            risk_level=ActionRiskLevel.INFORMATIONAL,
+            func=lambda: inspect_system_tools(self),
+        )
+        self.tool_registry.register(
+            name="inspect_system_status",
+            description="Inspect SANI system health, active LLM model, database status, workspace root, and Git remote configuration.",
+            risk_level=ActionRiskLevel.INFORMATIONAL,
+            func=lambda: inspect_system_status(self),
         )
         self.tool_registry.register(
             name="read_file",

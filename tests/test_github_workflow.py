@@ -64,6 +64,7 @@ def test_voice_push_request(owner_user: UserIdentity, monkeypatch: pytest.Monkey
     agent = SANIAgent()
     router = CommandRouter(agent)
 
+    monkeypatch.setattr(agent.git_tool, "get_remote_url", lambda root, remote="origin": "https://github.com/user/repo.git")
     monkeypatch.setattr(agent.git_tool, "list_unpushed_files", lambda root, remote="origin", branch=None: (2, ["src/sani/agent.py", "README.md"]))
     monkeypatch.setattr(agent.git_tool, "push", lambda root: (True, "GitHub push completed."))
 
@@ -108,6 +109,7 @@ def test_typed_push_request(owner_user: UserIdentity, monkeypatch: pytest.Monkey
     agent = SANIAgent()
     router = CommandRouter(agent)
 
+    monkeypatch.setattr(agent.git_tool, "get_remote_url", lambda root, remote="origin": "https://github.com/user/repo.git")
     monkeypatch.setattr(agent.git_tool, "list_unpushed_files", lambda root, remote="origin", branch=None: (1, ["src/sani/agent.py"]))
     monkeypatch.setattr(agent.git_tool, "push", lambda root: (True, "GitHub push completed."))
 
@@ -139,7 +141,7 @@ def test_no_github_remote_handled_safely(owner_user: UserIdentity, monkeypatch: 
     outcome = router.handle("Push update to GitHub", owner_user, InputOrigin.VOICE)
 
     assert outcome.handled
-    assert "No remote repository configured" in outcome.message
+    assert "No Git remote repository configured" in outcome.message or "No remote repository configured" in outcome.message
 
 
 # 11. Nothing to commit / status check

@@ -65,6 +65,22 @@ class GitTool:
         ok, out = self._run_git(["remote", "get-url", remote], cwd=workspace_root)
         return out if ok else ""
 
+    def set_remote_url(self, workspace_root: str, remote_url: str, remote_name: str = "origin") -> tuple[bool, str]:
+        """Set or update remote repository URL."""
+        if not remote_url or not remote_url.strip():
+            return False, "Remote URL cannot be empty."
+        existing = self.get_remote_url(workspace_root, remote_name)
+        if existing:
+            ok, out = self._run_git(["remote", "set-url", remote_name, remote_url.strip()], cwd=workspace_root)
+            return ok, f"Updated remote '{remote_name}' to {remote_url.strip()}" if ok else out
+        else:
+            ok, out = self._run_git(["remote", "add", remote_name, remote_url.strip()], cwd=workspace_root)
+            return ok, f"Added remote '{remote_name}' with {remote_url.strip()}" if ok else out
+
+    def init_repository(self, workspace_root: str) -> tuple[bool, str]:
+        """Initialize git repository in workspace if not already initialized."""
+        return self._run_git(["init"], cwd=workspace_root)
+
     def get_current_branch(self, workspace_root: str) -> str:
         """Return the currently checked-out branch, or an empty string when detached."""
         ok, out = self._run_git(["branch", "--show-current"], cwd=workspace_root)

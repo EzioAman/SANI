@@ -90,6 +90,20 @@ class CommandRouter:
             self.pending = None
             return CommandOutcome(True, "I did not treat that as confirmation, so the pending action was cancelled.")
 
+        import re
+        # Check if user input contains a Git/GitHub URL to configure
+        url_match = re.search(r"https?://github\.com/[\w\.-]+/[\w\.-]+(?:\.git)?|git@github\.com:[\w\.-]+/[\w\.-]+(?:\.git)?", text, re.IGNORECASE)
+        if url_match:
+            remote_url = url_match.group(0)
+            config = getattr(self.agent, "config", None)
+            git_tool = getattr(self.agent, "git_tool", None)
+            if config and git_tool:
+                workspace_root = str(config.workspace_root)
+                ok, msg = git_tool.set_remote_url(workspace_root, remote_url)
+                if ok:
+                    return CommandOutcome(True, f"Successfully configured Git remote URL to {remote_url}. You can now push your project!")
+                return CommandOutcome(True, f"Failed to set remote URL: {msg}")
+
         assessment = self.classifier.assess(text)
         if assessment.kind == IntentKind.AMBIGUOUS:
             return CommandOutcome(True, "Do you want me to stop listening or cancel a specific action?", assessment)
@@ -106,7 +120,7 @@ class CommandRouter:
         # Check remote
         remote_url = git_tool.get_remote_url(workspace_root)
         if not remote_url:
-            return CommandOutcome(True, "Cannot push to GitHub: No remote repository configured.", assessment)
+            return CommandOutcome(True, "Cannot push to GitHub: No remote repository configured. Provide a remote URL (e.g. 'https://github.com/user/repo.git') to configure it.", assessment)
 
         # Check for BOTH uncommitted changes AND unpushed commits
         ok, status_out = git_tool._run_git(["status", "--porcelain"], cwd=workspace_root)
