@@ -174,6 +174,7 @@ class PushReviewWindow:
 
         files_frame = ctk.CTkScrollableFrame(self._root, corner_radius=10, height=200)
         files_frame.pack(fill="both", expand=True, padx=20, pady=(5, 10))
+        files_frame.grid_columnconfigure(0, weight=1)
 
         warned_files = scan.warned_files() if scan else set()
         self._checkboxes = []
@@ -209,7 +210,7 @@ class PushReviewWindow:
                 text_color="#FF6B6B" if is_blocked else ("#FFD93D" if is_warned else None),
                 state="disabled" if is_blocked else "normal",
             )
-            cb.grid(row=i, column=0, padx=10, pady=3, sticky="w")
+            cb.grid(row=i, column=0, padx=10, pady=3, sticky="ew")
             self._checkboxes.append((cb, var, path))
 
         # --- Security Scan Results ---
@@ -222,6 +223,7 @@ class PushReviewWindow:
 
             scan_frame = ctk.CTkScrollableFrame(self._root, corner_radius=10, height=100)
             scan_frame.pack(fill="x", padx=20, pady=(5, 10))
+            scan_frame.grid_columnconfigure(0, weight=1)
 
             for j, finding in enumerate(scan.findings):
                 icon = "🔴" if finding.severity.value == "CRITICAL" else "🟡"
@@ -230,7 +232,7 @@ class PushReviewWindow:
                 ctk.CTkLabel(
                     scan_frame, text=text, font=ctk.CTkFont(size=11), anchor="w",
                     text_color="#FF6B6B" if finding.severity.value == "CRITICAL" else "#FFD93D",
-                ).grid(row=j, column=0, padx=10, pady=2, sticky="w")
+                ).grid(row=j, column=0, padx=10, pady=2, sticky="ew")
 
         # --- Commit Message ---
         commit_label = ctk.CTkLabel(
@@ -278,14 +280,22 @@ class PushReviewWindow:
         self._decision = PushDecision(cancelled=False, selected_files=selected, commit_message=commit_msg)
         self._result_event.set()
         if self._root:
-            self._root.destroy()
+            try:
+                self._root.quit()
+                self._root.destroy()
+            except Exception:
+                pass
             self._root = None
 
     def _on_cancel(self) -> None:
         self._decision = PushDecision(cancelled=True)
         self._result_event.set()
         if self._root:
-            self._root.destroy()
+            try:
+                self._root.quit()
+                self._root.destroy()
+            except Exception:
+                pass
             self._root = None
 
     def _update_commit_text(self, msg: str) -> None:

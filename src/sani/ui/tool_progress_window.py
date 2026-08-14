@@ -200,6 +200,7 @@ class ToolProgressWindow:
     def _destroy(self) -> None:
         if self._root:
             try:
+                self._root.quit()
                 self._root.destroy()
             except Exception:
                 pass

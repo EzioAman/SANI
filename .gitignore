@@ -13,3 +13,11 @@ wheels/
 .env
 *.db
 *.sqlite
+
+# Testing & Temp Files
+.pytest_cache/
+.pytest-tmp/
+*.log
+.system_generated/
+.scrape/
+
