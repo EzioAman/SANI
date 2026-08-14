@@ -40,8 +40,9 @@ def test_ambiguous_and_discussion_phrases_never_propose_execution() -> None:
         assert classifier.assess(phrase).action != "git_push"
 
 
-def test_voice_push_requires_pending_explicit_confirmation() -> None:
+def test_voice_push_requires_pending_explicit_confirmation(monkeypatch) -> None:
     agent = FakeAgent()
+    monkeypatch.setattr(agent.git_tool, "push", lambda root: (True, "GitHub push completed."))
     router = CommandRouter(agent)
     result = router.handle("Push the latest update to GitHub.", owner(), InputOrigin.VOICE)
     assert result.handled
