@@ -1,7 +1,7 @@
 """Abstract Interface for Replaceable Model Providers (Commandment 6)."""
 
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import Any, Iterator
 import openai
 from google import genai
 from google.genai import types
@@ -14,6 +14,15 @@ class LLMProvider(ABC):
     def generate_response(self, prompt: str, system_prompt: str = "", tools: list[Any] | None = None) -> str:
         """Generate response text from model."""
         pass
+
+    def generate_response_stream(self, prompt: str, system_prompt: str = "", tools: list[Any] | None = None) -> Iterator[str]:
+        """Yield model deltas when the provider supports streaming.
+
+        Providers without a streaming API retain a safe one-item fallback.
+        """
+        response = self.generate_response(prompt, system_prompt, tools)
+        if response:
+            yield response
 
 
 class GeminiProvider(LLMProvider):
@@ -54,7 +63,7 @@ class GeminiProvider(LLMProvider):
     def generate_response(self, prompt: str, system_prompt: str = "", tools: list[Any] | None = None) -> str:
         if not self._client:
             return (
-                "[System Notice: Gemini API key is missing. Set GEMINI_API_KEY in your .env file.]"
+                "[System Notice: API key is missing. Set LLM_API_KEY in your .env file.]"
             )
 
         try:
@@ -66,7 +75,7 @@ class GeminiProvider(LLMProvider):
             if "PERMISSION_DENIED" in err_str or "403" in err_str:
                 return (
                     f"[Gemini API Error: Permission Denied (403). "
-                    f"Please check that your GEMINI_API_KEY in .env is a valid key from Google AI Studio (https://aistudio.google.com/app/apikey). Details: {err_str}]"
+                    f"Please check that your LLM_API_KEY in .env is a valid key from Google AI Studio (https://aistudio.google.com/app/apikey). Details: {err_str}]"
                 )
             if "INVALID_ARGUMENT" in err_str or "API_KEY_INVALID" in err_str or "400" in err_str:
                 return (
@@ -87,6 +96,19 @@ class GeminiProvider(LLMProvider):
                 except Exception as fb_err:
                     return f"[Gemini API Error: {fb_err}]"
             return f"[Gemini API Error: {err_str}]"
+
+    def generate_response_stream(self, prompt: str, system_prompt: str = "", tools: list[Any] | None = None) -> Iterator[str]:
+        if not self._client:
+            yield "[System Notice: API key is missing. Set LLM_API_KEY in your .env file.]"
+            return
+        try:
+            chat_session = self._get_chat(system_prompt)
+            for chunk in chat_session.send_message_stream(prompt):
+                text = getattr(chunk, "text", None)
+                if text:
+                    yield text
+        except Exception as exc:
+            yield f"[Gemini API Error: {exc}]"
 
 
 class OpenAIProvider(LLMProvider):
@@ -119,3 +141,17 @@ class OpenAIProvider(LLMProvider):
             return response.choices[0].message.content or ""
         except Exception as e:
             return f"[OpenAI API Error: {e}]"
+
+    def generate_response_stream(self, prompt: str, system_prompt: str = "", tools: list[Any] | None = None) -> Iterator[str]:
+        if not self._client:
+            yield "[System Notice: OpenAI API key is missing. Set OPENAI_API_KEY in your environment or .env file to enable live model testing.]"
+            return
+        messages = ([{"role": "system", "content": system_prompt}] if system_prompt else [])
+        messages.append({"role": "user", "content": prompt})
+        try:
+            for chunk in self._client.chat.completions.create(model=self.model, messages=messages, stream=True):
+                text = chunk.choices[0].delta.content if chunk.choices else None
+                if text:
+                    yield text
+        except Exception as exc:
+            yield f"[OpenAI API Error: {exc}]"

@@ -65,20 +65,79 @@ class GitTool:
         ok, out = self._run_git(["remote", "get-url", remote], cwd=workspace_root)
         return out if ok else ""
 
-    def push(self, workspace_root: str, remote: str = "origin", branch: str = "main") -> tuple[bool, str]:
-        """Push commits to remote repository (Requires Aman Confirmation)."""
-        ok, out = self._run_git(["push", "-u", remote, branch], cwd=workspace_root)
-        return ok, out
+    def get_current_branch(self, workspace_root: str) -> str:
+        """Return the currently checked-out branch, or an empty string when detached."""
+        ok, out = self._run_git(["branch", "--show-current"], cwd=workspace_root)
+        return out if ok else ""
 
-    def push_with_credentials(
-        self, workspace_root: str, remote_url: str, username: str, token_or_pass: str, branch: str = "main"
-    ) -> tuple[bool, str]:
-        """Push to remote URL with embedded PAT token or password credentials."""
-        # Replace https:// with https://username:token@ in remote URL
-        clean_url = remote_url.replace("https://", "").replace("http://", "")
-        auth_url = f"https://{username}:{token_or_pass}@{clean_url}"
-        
-        ok, out = self._run_git(["push", "--set-upstream", auth_url, branch], cwd=workspace_root)
+    def inspect_pre_operation_safety(self, workspace_root: str) -> tuple[bool, str, list[str]]:
+        """Inspect workspace for secrets and sensitive files before any commit or push operation."""
+        sensitive_patterns = [
+            r"\.env$",
+            r"\.env\.",
+            r"\.db$",
+            r"\.sqlite",
+            r"\.pem$",
+            r"\.key$",
+            r"\.pfx$",
+            r"\.p12$",
+            r"id_rsa",
+            r"id_ed25519",
+            r"sani_memory\.db",
+            r"secret",
+            r"credential",
+            r"token",
+        ]
+        import re
+
+        sensitive_files: set[str] = set()
+
+        # 1. Inspect untracked, modified, and staged files via git status --porcelain
+        ok, status_out = self._run_git(["status", "--porcelain"], cwd=workspace_root)
+        if ok and status_out:
+            for line in status_out.splitlines():
+                if len(line) >= 3:
+                    file_path = line[3:].strip()
+                    base_name = os.path.basename(file_path).lower()
+                    for pattern in sensitive_patterns:
+                        if re.search(pattern, base_name, re.IGNORECASE) or re.search(pattern, file_path.lower(), re.IGNORECASE):
+                            sensitive_files.add(file_path)
+
+        # 2. Inspect files in HEAD commit
+        ok_log, log_out = self._run_git(["log", "-n", "1", "--name-only", "--pretty=format:"], cwd=workspace_root)
+        if ok_log and log_out:
+            for line in log_out.splitlines():
+                line = line.strip()
+                if line:
+                    base_name = os.path.basename(line).lower()
+                    for pattern in sensitive_patterns:
+                        if re.search(pattern, base_name, re.IGNORECASE) or re.search(pattern, line.lower(), re.IGNORECASE):
+                            sensitive_files.add(line)
+
+        if sensitive_files:
+            file_list = sorted(list(sensitive_files))
+            return False, f"Sensitive file(s) detected: {', '.join(file_list)}. Operation blocked for security.", file_list
+
+        return True, "Pre-operation secret scan passed cleanly.", []
+
+    def push(self, workspace_root: str, remote: str = "origin", branch: str | None = None) -> tuple[bool, str]:
+        """Push commits to remote repository with pre-push safety and secret checks."""
+        # 1. Pre-push secret check
+        is_safe, safety_msg, sensitive_files = self.inspect_pre_operation_safety(workspace_root)
+        if not is_safe:
+            return False, safety_msg
+
+        # 2. Verify remote exists
+        remote_url = self.get_remote_url(workspace_root, remote=remote)
+        if not remote_url:
+            return False, f"No Git remote repository configured for '{remote}'."
+
+        # 3. Verify current branch
+        branch = branch or self.get_current_branch(workspace_root)
+        if not branch:
+            return False, "Cannot push while HEAD is detached; check out a branch first."
+
+        ok, out = self._run_git(["push", "-u", remote, branch], cwd=workspace_root)
         return ok, out
 
 

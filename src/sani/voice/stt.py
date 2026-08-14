@@ -11,7 +11,7 @@ class GeminiSTTProvider:
 
     def __init__(self, api_key: str | None = None, model: str = "gemini-3.1-flash-lite") -> None:
         self.config = get_config()
-        self.api_key = api_key or self.config.gemini_api_key or self.config.openai_api_key
+        self.api_key = api_key or self.config.llm_api_key or self.config.gemini_api_key or self.config.openai_api_key
         self.model = model
         self._client: genai.Client | None = None
 

@@ -16,13 +16,15 @@ class AudioPlayer:
 
     def __init__(
         self,
-        interruption_threshold_rms: float = 0.040,
+        interruption_threshold_rms: float = 0.020,
         sample_rate: int = 16000,
+        input_device: int | None = None,
         enable_barge_in: bool = True,
     ) -> None:
-        # Threshold set to 0.040 RMS: Above laptop speaker bleed (0.015 RMS) but below human speech (0.040+ RMS)
+        # Threshold set to 0.020 RMS: Balanced above ambient bleed while sensitive to natural human speech
         self.interruption_threshold_rms = interruption_threshold_rms
         self.sample_rate = sample_rate
+        self.input_device = input_device
         self.enable_barge_in = enable_barge_in
         self._is_playing = False
         self._interrupted = False
@@ -70,12 +72,26 @@ class AudioPlayer:
             # 350ms initial playback grace period to prevent audio startup burst false-positives
             grace_period_samples = int(playback_sample_rate * 0.35)
 
-            with sd.OutputStream(samplerate=playback_sample_rate, channels=nchannels, dtype="float32") as out_stream, \
-                 sd.InputStream(samplerate=self.sample_rate, channels=1, dtype="float32") as mic_stream:
+            input_kwargs = {
+                "samplerate": self.sample_rate,
+                "channels": 1,
+                "dtype": "float32",
+            }
+            if self.input_device is not None:
+                input_kwargs["device"] = self.input_device
 
+            mic_stream = None
+            if self.enable_barge_in:
+                try:
+                    mic_stream = sd.InputStream(**input_kwargs)
+                    mic_stream.start()
+                except Exception as exc:
+                    print(f"[Voice] Barge-in monitoring unavailable: {exc}")
+
+            with sd.OutputStream(samplerate=playback_sample_rate, channels=nchannels, dtype="float32") as out_stream:
                 while position < total_samples and self._is_playing:
                     # Check mic interruption after 350ms grace period
-                    if self.enable_barge_in and position > grace_period_samples:
+                    if mic_stream is not None and position > grace_period_samples:
                         try:
                             mic_chunk, _ = mic_stream.read(mic_chunk_size)
                             rms = float(np.sqrt(np.mean(mic_chunk**2)))
@@ -87,7 +103,6 @@ class AudioPlayer:
                                     print("\n[Voice] Interrupted by Aman! Stopping speech immediately...")
                                     self._interrupted = True
                                     self._is_playing = False
-                                    sd.stop()
                                     return False  # Interrupted!
                             else:
                                 consecutive_user_speech_chunks = 0
@@ -100,6 +115,9 @@ class AudioPlayer:
                     out_stream.write(playback_chunk)
                     position = end_pos
 
+            if mic_stream is not None:
+                mic_stream.close()
+
             return not self._interrupted
 
         except Exception as e:
@@ -110,4 +128,7 @@ class AudioPlayer:
         """Halt playback immediately."""
         self._is_playing = False
         self._interrupted = True
-        sd.stop()
+        try:
+            sd.stop()
+        except Exception:
+            pass

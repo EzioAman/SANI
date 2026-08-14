@@ -15,15 +15,17 @@ class AudioRecorder:
         device_index: int | None = None,
         sample_rate: int = 16000,
         channels: int = 1,
-        silence_threshold_rms: float = 0.015,
-        silence_duration_seconds: float = 1.5,
-        max_record_seconds: float = 15.0,
+        silence_threshold_rms: float = 0.008,
+        silence_duration_seconds: float = 1.0,
+        max_wait_for_speech_seconds: float = 5.0,
+        max_record_seconds: float = 30.0,
     ) -> None:
         self.device_index = device_index
         self.sample_rate = sample_rate
         self.channels = channels
         self.silence_threshold_rms = silence_threshold_rms
         self.silence_duration_seconds = silence_duration_seconds
+        self.max_wait_for_speech_seconds = max_wait_for_speech_seconds
         self.max_record_seconds = max_record_seconds
 
     @staticmethod
@@ -63,6 +65,11 @@ class AudioRecorder:
 
     def set_microphone(self, device_index: int) -> str:
         """Switch active microphone input device."""
+        devices = sd.query_devices()
+        if device_index < 0 or device_index >= len(devices):
+            raise ValueError(f"Microphone index #{device_index} is out of range.")
+        if devices[device_index].get("max_input_channels", 0) <= 0:
+            raise ValueError(f"Device #{device_index} is not an input microphone.")
         self.device_index = device_index
         return self.get_active_microphone_name()
 
@@ -81,6 +88,7 @@ class AudioRecorder:
         audio_chunks = []
         silent_chunks = 0
         max_silent_chunks = int(self.silence_duration_seconds / 0.1)
+        max_wait_chunks = int(self.max_wait_for_speech_seconds / 0.1)
         max_total_chunks = int(self.max_record_seconds / 0.1)
         has_speech_started = False
 
@@ -96,7 +104,6 @@ class AudioRecorder:
             with sd.InputStream(**stream_kwargs) as stream:
                 for _ in range(max_total_chunks):
                     chunk, overflow = stream.read(chunk_size)
-                    audio_chunks.append(chunk)
 
                     # Calculate Root Mean Square (RMS) volume
                     rms = float(np.sqrt(np.mean(chunk**2)))
@@ -107,14 +114,19 @@ class AudioRecorder:
                     sys.stdout.flush()
 
                     if rms > self.silence_threshold_rms:
+                        audio_chunks.append(chunk)
                         has_speech_started = True
                         silent_chunks = 0
                     elif has_speech_started:
+                        audio_chunks.append(chunk)
                         silent_chunks += 1
                         if silent_chunks >= max_silent_chunks:
                             sys.stdout.write(f"\r  {level_display} | Status: Silence detected. Processing...          \n")
                             sys.stdout.flush()
                             break
+                    elif _ >= max_wait_chunks:
+                        print("\n[Voice] No speech detected. Continuing to listen.")
+                        return b""
         except Exception as e:
             print(f"\n[AudioRecorder Hardware Error: {e}]")
             return b""

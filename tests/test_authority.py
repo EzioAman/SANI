@@ -8,6 +8,7 @@ from sani.models import (
     Role,
     ToolRequest,
     UserIdentity,
+    InputOrigin,
 )
 
 
@@ -77,3 +78,15 @@ def test_policy_conflict_takes_precedence(authority_engine: AuthorityEngine, own
     decision = authority_engine.evaluate(request, ActionRiskLevel.DESTRUCTIVE)
     assert decision.decision == AuthorityDecisionType.POLICY_CONFLICT
     assert "Policy Rule #104" in decision.reason
+
+
+def test_voice_consequential_action_always_requires_confirmation(authority_engine: AuthorityEngine, owner_user: UserIdentity) -> None:
+    request = ToolRequest(
+        tool_name="git_push",
+        requested_by=owner_user,
+        origin=InputOrigin.VOICE,
+    )
+
+    decision = authority_engine.evaluate(request, ActionRiskLevel.SYSTEM_CHANGING)
+
+    assert decision.decision == AuthorityDecisionType.REQUIRES_CONFIRMATION

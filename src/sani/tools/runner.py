@@ -41,6 +41,11 @@ class ToolRunner:
         This method DOES NOT evaluate authority; it enforces the decision made by AuthorityEngine.
         """
         # Enforce Authority Decision
+        tool_def = self.registry.get_tool(request.tool_name)
+        if not tool_def:
+            raise ValueError(f"Tool '{request.tool_name}' is not registered in ToolRegistry.")
+        if decision.action_name != request.tool_name or decision.user_identity != request.requested_by:
+            raise ExecutionDeniedError("Authority decision does not match the requested action or user.")
         if decision.decision == AuthorityDecisionType.DENY:
             raise ExecutionDeniedError(f"Execution DENIED: {decision.reason}")
 
@@ -49,10 +54,6 @@ class ToolRunner:
 
         if decision.decision == AuthorityDecisionType.REQUIRES_CONFIRMATION and not is_human_confirmed:
             raise ConfirmationRequiredException(decision)
-
-        tool_def = self.registry.get_tool(request.tool_name)
-        if not tool_def:
-            raise ValueError(f"Tool '{request.tool_name}' is not registered in ToolRegistry.")
 
         # Execute Tool (Parameter validation happens independently within the tool function)
         return tool_def.func(**request.arguments)

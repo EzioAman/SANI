@@ -12,6 +12,13 @@ class Role(str, Enum):
     GUEST = "GUEST"  # Guest session with minimal permissions
 
 
+class InputOrigin(str, Enum):
+    """The interface through which a request entered SANI."""
+
+    TYPED = "TYPED"
+    VOICE = "VOICE"
+
+
 class UserIdentity(BaseModel):
     """Authenticated user identity."""
 
@@ -58,6 +65,7 @@ class ToolRequest(BaseModel):
     arguments: dict[str, Any] = Field(default_factory=dict)
     requested_by: UserIdentity
     context: str = ""
+    origin: InputOrigin = InputOrigin.TYPED
 
 
 class MemoryItem(BaseModel):

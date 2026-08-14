@@ -93,20 +93,22 @@ The LLM must not receive unrestricted direct control over the operating system. 
 | 11 | Select Local Voice Stack | Confirmed | Y | Selected Moonshine for local speech-to-text (STT) and Kokoro for local text-to-speech (TTS), targeting smooth CPU-only laptop operation. |
 | 12 | Build Headless Audio, Interruption & Hands-Free Control | Done | Y | Updated STT with Chat API (eliminating AFC warning), added startup mic/voice display, hands-free vocal voice switching, and hands-free microphone switching. |
 | 13 | Build Smart Intent Classifier, Pre-Push Audit & Hands-Free GitHub Push | Done | Y | Implemented `SmartIntentClassifier` (`src/sani/voice/intent.py`) categorizing speech into `CHAT`, `CONFIG_VOICE`, `CONFIG_MIC`, `GIT_PUSH`, `PROJECT_AUDIT`, and `EXIT`. Built `GitTool` (`src/sani/tools/git_tool.py`) with automatic `git.exe` resolution, configured Git identity `EzioAman`, created initial commit `6d8ce34`, and set remote `origin` to `https://github.com/EzioAman/SANI.git`. Integrated hands-free vocal audit and GitHub push workflow into `VoicePipeline`. Verified 19/19 unit tests passing. |
+| 14 | Unified GitHub Upload Workflow & Pre-Commit/Pre-Push Secret Guardrails | Done | Y | Standardized primary API key variable to `LLM_API_KEY`. Built pre-commit and pre-push secret scanning (blocking `.env`, `sani_memory.db`, `*.key`, `*.pem`) in `GitTool`, unified typed and voice GitHub push workflows through `AuthorityEngine`, implemented explicit confirmation enforcement rejecting ambiguous phrases ("okay", "sure", "yeah"), and built comprehensive test suite `tests/test_github_workflow.py`. Verified with 44/44 passing unit test suite. |
 
 ## 6. Current State
-- Last completed step: Step 13 — Build Smart Intent Classifier, Pre-Push Audit & Hands-Free GitHub Push
-- Currently working on: Step 14 — Next capability phase (Screen/Vision context & environment understanding)
+- Last completed step: Step 14 — Unified GitHub Upload Workflow & Pre-Commit/Pre-Push Secret Guardrails
+- Currently working on: Step 15 — Next capability phase (Screen/Vision context & environment understanding)
 - Project directory: `E:\Projects\SANI`
 - Current IDE: Antigravity IDE
 - Current terminal: Antigravity integrated PowerShell
 - Python version: 3.12.7
 - uv version: 0.12.4
 - Git version: 2.55.0.windows.4
+- Primary API Key Env Var: `LLM_API_KEY` (loads Gemini / OpenAI keys)
 - Remote GitHub Repository: `https://github.com/EzioAman/SANI.git` (branch: `main`)
 - Initial Git Commit: `6d8ce34 feat: Baseline SANI Agent Core, Authority Engine, SQLite Store, & Smart Voice Subsystem`
 - Dependencies: `openai-agents`, `pytest`, `pydantic`, `google-genai`, `sounddevice`, `soundfile`, `miniaudio`, `numpy`, `edge-tts`, `pyttsx3`
-- Authority Engine, Tool Execution Runtime, SQLite Memory Store, Replaceable Interfaces, Headless Voice Engine, Interruption Subsystem, Smart Intent Classifier, Git Tool, and Hands-Free GitHub Push workflow built and verified with 19/19 passing unit test suite
+- Authority Engine, Tool Execution Runtime, SQLite Memory Store, Replaceable Interfaces, Headless Voice Engine, Interruption Subsystem, Smart Intent Classifier, Git Tool, Pre-Commit/Pre-Push Secret Guardrails, and Unified GitHub Push workflow built and verified with 44/44 passing unit test suite
 - Blockers: None
 
 ## 7. Open Questions
@@ -135,5 +137,6 @@ The LLM must not receive unrestricted direct control over the operating system. 
 | Playwright provides Python browser automation | Official Playwright documentation | 2026-08-14 |
 | Antigravity's documented editor/CLI behavior does not provide verified evidence that its IDE executable can be configured as Git for Windows `core.editor` | Official Antigravity documentation checked during setup | 2026-08-14 |
 | Gemini is the current working LLM provider for SANI | User-provided terminal output | 2026-08-14 |
-| Local voice stack selected as Whisper large-v3-turbo (fallback) STT + Kokoro TTS | User confirmation | 2026-08-14 |
-| Voice execution is deferred to Phase 2; current voice layer remains non-authoritative | User confirmation / project architecture | 2026-08-14 |
+| Primary API Key environment variable standardized to `LLM_API_KEY` | Environment & config verification | 2026-08-15 |
+| Pre-commit and pre-push secret scanning blocks sensitive files (`.env`, `sani_memory.db`, `*.key`) | Automated pytest verification | 2026-08-15 |
+| Complete SANI test suite (44 tests) passing cleanly | Automated `uv run pytest` execution | 2026-08-15 |

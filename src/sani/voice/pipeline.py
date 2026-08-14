@@ -6,11 +6,10 @@ evaluated through the SANI AuthorityEngine.
 """
 
 import re
-import sys
 import time
 from sani.agent import SANIAgent
-from sani.authority import ActionRiskLevel, ToolRequest
-from sani.models import UserIdentity
+from sani.command_router import CommandRouter
+from sani.models import InputOrigin, UserIdentity
 from sani.tools.git_tool import GitTool
 from sani.voice.intent import IntentCategory, SmartIntentClassifier
 from sani.voice.player import AudioPlayer
@@ -43,8 +42,9 @@ class VoicePipeline:
         self.stt_provider = stt_provider or GeminiSTTProvider()
         self.tts_provider = tts_provider or EdgeTTSProvider(voice=saved_voice)
         self.recorder = recorder or AudioRecorder(device_index=saved_mic)
-        self.player = player or AudioPlayer()
+        self.player = player or AudioPlayer(input_device=saved_mic)
         self.intent_classifier = intent_classifier or SmartIntentClassifier()
+        self.command_router = CommandRouter(agent, self.intent_classifier)
         self.git_tool = git_tool or GitTool()
 
     def speak_response(self, text: str, user: UserIdentity) -> bool:
@@ -67,6 +67,26 @@ class VoicePipeline:
                     return False  # Interrupted by user mid-sentence!
 
         return True
+
+    def speak_stream(self, text_stream, user: UserIdentity) -> bool:
+        """Turn genuine provider deltas into clause/sentence-sized TTS requests immediately while printing live text output."""
+        print("\nSANI (Voice) > ", end="", flush=True)
+        pending = ""
+        for delta in text_stream:
+            print(delta, end="", flush=True)
+            pending += delta
+            if len(pending) > 30:
+                parts = re.split(r"(?<=[.!?।])\s+|(?:(?<=[,;:—])\s+)", pending)
+            else:
+                parts = re.split(r"(?<=[.!?।])\s+", pending)
+            pending = parts.pop()
+            for sentence in parts:
+                if sentence.strip() and not self.speak_response(sentence.strip(), user):
+                    print()
+                    return False
+        res = not pending.strip() or self.speak_response(pending.strip(), user)
+        print()
+        return res
 
     def display_startup_hardware_and_voice_config(self) -> None:
         """Display active hardware, available microphones, and voice actors at startup."""
@@ -93,92 +113,36 @@ class VoicePipeline:
             print(f"  {is_act} • {name:<12} - {desc}")
         print(f"==================================================")
 
-    def _execute_handsfree_git_push(self, user: UserIdentity) -> None:
-        """Perform hands-free audit, prompt user vocally for confirmation, and push to GitHub."""
-        workspace_root = self.agent.config.workspace_root
-        remote_url = "https://github.com/EzioAman/SANI.git"
-
-        print(f"\n[SANI Audit Engine] Auditing codebase and repository state...")
+    def _run_project_audit(self, user: UserIdentity) -> None:
+        """Report the real repository state without modifying or pushing it."""
+        workspace_root = str(self.agent.config.workspace_root)
+        branch = self.git_tool.get_current_branch(workspace_root) or "detached HEAD"
+        remote_url = self.git_tool.get_remote_url(workspace_root) or "No origin remote configured"
         status_text = self.git_tool.status(workspace_root)
-        commit_log = self.git_tool.get_commit_log(workspace_root, count=1)
+        commit_log = self.git_tool.get_commit_log(workspace_root, count=1) or "No commits found"
+        print("\n[SANI Audit Engine] Repository state:")
+        print(f"  • Branch: {branch}\n  • Commit: {commit_log}\n  • Remote: {remote_url}\n  • Status: {status_text or 'clean'}")
+        state = "is clean" if "nothing to commit" in status_text.lower() else "has local changes"
+        self.speak_response(f"Project audit complete. Branch {branch} {state}. I have not changed or pushed anything.", user=user)
 
-        print(f"SANI (Audit) > Workspace Audit complete.")
-        print(f"  • Commit: {commit_log}")
-        print(f"  • Remote: {remote_url}")
-
-        audit_spoken = (
-            f"Pre push audit complete, {user.name}. All 19 unit tests are passing and your initial commit "
-            f"is staged for remote repository at https://github.com/EzioAman/SANI.git."
-        )
-        self.speak_response(audit_spoken, user=user)
-
-        confirm_prompt = f"Aman, do you confirm pushing this codebase to GitHub now?"
-        print(f"\nSANI (Authority Engine) > {confirm_prompt}")
-        self.speak_response(confirm_prompt, user=user)
-
-        audio_bytes = self.recorder.record_until_silence(prompt_message=f"Awaiting Aman's vocal confirmation (say 'Yes' or 'Push')...")
-        if not audio_bytes:
-            print("[Voice] Confirmation timed out.")
-            self.speak_response("GitHub push cancelled. Awaiting further commands.", user=user)
-            return
-
-        response_speech = self.stt_provider.speech_to_text(audio_bytes).lower().strip()
-        print(f"{user.name} (Vocal Approval) > {response_speech}")
-
-        if any(aff in response_speech for aff in ["yes", "confirm", "push", "do it", "push it", "go ahead", "हा", "हाँ"]):
-            tool_req = ToolRequest(
-                tool_name="git_push",
-                parameters={"remote": "origin", "branch": "main"},
-                user=user,
-            )
-            decision = self.agent.authority.evaluate(tool_req, risk_level=ActionRiskLevel.SYSTEM_CHANGING)
-
-            if decision.decision in (decision.decision.ALLOW, decision.decision.REQUIRES_CONFIRMATION):
-                print("\n[SANI Tool Execution] Pushing repository to GitHub...")
-                ok, output = self.git_tool.push(workspace_root, remote="origin", branch="main")
-
-                if ok:
-                    success_msg = f"Successfully pushed SANI codebase to GitHub at https://github.com/EzioAman/SANI.git!"
-                    print(f"\nSANI (Git Engine) > {success_msg}\n")
-                    self.speak_response(success_msg, user=user)
-                else:
-                    ok_cred, out_cred = self.git_tool.push_with_credentials(
-                        workspace_root=workspace_root,
-                        remote_url=remote_url,
-                        username="EzioAman",
-                        token_or_pass="testing123",
-                        branch="main"
-                    )
-                    if ok_cred:
-                        success_msg = f"Successfully pushed SANI codebase to GitHub at https://github.com/EzioAman/SANI.git!"
-                        print(f"\nSANI (Git Engine) > {success_msg}\n")
-                        self.speak_response(success_msg, user=user)
-                    else:
-                        fail_msg = (
-                            f"Push failed: {out_cred or output}. Please ensure your GitHub Personal Access Token "
-                            f"is saved in your Git Credential Manager."
-                        )
-                        print(f"\nSANI (Git Engine Error) > {fail_msg}\n")
-                        self.speak_response(fail_msg, user=user)
-            else:
-                denied_msg = f"Push denied by AuthorityEngine: {decision.reason}"
-                print(f"\nSANI (Authority Engine) > {denied_msg}\n")
-                self.speak_response(denied_msg, user=user)
-        else:
-            cancel_msg = "GitHub push cancelled by user."
-            print(f"\nSANI (Git Engine) > {cancel_msg}\n")
-            self.speak_response(cancel_msg, user=user)
+    def _execute_handsfree_git_push(self, user: UserIdentity) -> None:
+        """Start the shared, voice-origin confirmation flow for a GitHub push."""
+        outcome = self.command_router.handle("push the update to github", user, InputOrigin.VOICE)
+        self.speak_response(outcome.message, user=user)
 
     def _handle_voice_commands(self, text: str, category: IntentCategory, user: UserIdentity) -> bool:
         """Handle hands-free vocal configuration & project control commands."""
         low = text.lower().strip()
 
         # 1. GitHub Push / Project Audit Command
-        if category in (IntentCategory.GIT_PUSH, IntentCategory.PROJECT_AUDIT):
+        if category == IntentCategory.GIT_PUSH:
             self._execute_handsfree_git_push(user)
             return True
+        if category == IntentCategory.PROJECT_AUDIT:
+            self._run_project_audit(user)
+            return True
 
-        # 2. Microphone Options or Switching with 100% Hardware Confidence Check
+        # 2. Microphone Options or Switching with a short hardware capture check
         if category == IntentCategory.CONFIG_MIC:
             match_mic = re.search(r"(?:switch|change|set)\s+(?:mic|microphone|माइक|माइक्रोफोन)\s+(?:to\s+)?(\d+)", low)
             if match_mic:
@@ -187,9 +151,10 @@ class VoicePipeline:
                     ok, hardware_info = self.settings_mgr.test_microphone_hardware_confidence(idx)
                     if ok:
                         self.recorder.set_microphone(idx)
+                        self.player.input_device = idx
                         self.settings_mgr.set_mic_index(idx)
-                        msg = f"Microphone hardware confirmed 100%. Active device updated to {hardware_info}."
-                        print(f"\nSANI (Hardware Confirmed 100%) > {msg}\n")
+                        msg = f"Microphone hardware check passed. Active device updated to {hardware_info}."
+                        print(f"\nSANI (Hardware Check Passed) > {msg}\n")
                         self.speak_response(msg, user=user)
                     else:
                         msg = f"Hardware test failed for mic index {idx}: {hardware_info}"
@@ -208,7 +173,7 @@ class VoicePipeline:
                     print(f"\nSANI (Hardware Settings) > {msg}\n")
                     self.speak_response(msg, user=user)
                 else:
-                    formatted = "\n  [Available Microphones - Hardware Confirmed 100%]\n"
+                    formatted = "\n  [Available Microphones]\n"
                     for m in mics:
                         is_active = "*" if self.recorder.device_index == m["index"] else " "
                         formatted += f"  {is_active} [{m['index']}] {m['name']} ({int(m['sample_rate'])} Hz)\n"
@@ -220,11 +185,22 @@ class VoicePipeline:
 
         # 3. Voice Options or Switching with Persistent Voice Actor Storage
         if category == IntentCategory.CONFIG_VOICE:
+            canonical_map = {
+                "en-US-AndrewNeural": "Andrew",
+                "en-US-AriaNeural": "Aria",
+                "en-US-GuyNeural": "Guy",
+                "en-US-JennyNeural": "Jenny",
+                "en-US-ChristopherNeural": "Christopher",
+                "en-IN-NeerjaNeural": "Neerja",
+                "en-IN-PrabhatNeural": "Prabhat",
+                "hi-IN-SwaraNeural": "Swara",
+                "hi-IN-MadhurNeural": "Madhur",
+            }
             for v_alias in sorted(AVAILABLE_VOICES.keys(), key=len, reverse=True):
                 if re.search(r"\b" + re.escape(v_alias) + r"\b", low):
-                    canonical_name = "Aria" if v_alias in ("aria", "arya", "aariya", "आर्या") else v_alias.capitalize()
                     new_voice_id = self.tts_provider.set_voice(v_alias)
                     self.settings_mgr.set_voice(new_voice_id)
+                    canonical_name = canonical_map.get(new_voice_id, v_alias.capitalize())
                     msg = f"Voice actor updated to {canonical_name} and saved to persistent settings."
                     print(f"\nSANI (Voice Settings Saved) > {msg}\n")
                     self.speak_response(msg, user=user)
@@ -260,8 +236,13 @@ class VoicePipeline:
 
         print(f"\n{user.name} (Voice) > {user_text}")
 
-        # Step 3: Smart Intent Classification
-        category = self.intent_classifier.classify(user_text)
+        # Step 3: Shared intent and command routing. This never lets the model execute tools.
+        outcome = self.command_router.handle(user_text, user, InputOrigin.VOICE)
+        if outcome.handled:
+            print(f"SANI > {outcome.message}")
+            self.speak_response(outcome.message, user=user)
+            return True
+        category = outcome.assessment.category if outcome.assessment else self.intent_classifier.classify(user_text)
 
         # Handle Exit Intent
         if category == IntentCategory.EXIT:
@@ -278,11 +259,8 @@ class VoicePipeline:
         voice_prompt = (
             f"{user_text}\n\n[System Note for Voice Mode: Respond in a natural, concise, human spoken conversation style (1-3 sentences). Avoid code blocks or bullet lists.]"
         )
-        response_text = self.agent.chat(prompt=voice_prompt, user=user)
-        print(f"SANI > {response_text}\n")
-
-        # Step 5: Text-to-Speech (TTS) -> Sentence Streamlike Output
-        self.speak_response(response_text, user=user)
+        # Step 5: Gemini/OpenAI provider deltas feed TTS before the response is complete.
+        self.speak_stream(self.agent.chat_stream(prompt=voice_prompt, user=user), user=user)
         return True
 
     def run_continuous_loop(self, user: UserIdentity) -> None:

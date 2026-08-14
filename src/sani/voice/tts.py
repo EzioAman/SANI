@@ -100,9 +100,13 @@ class EdgeTTSProvider:
             return self._speak_offline(clean_text)
 
     def _speak_offline(self, text: str) -> bytes:
-        if self._offline_engine is None:
-            self._offline_engine = pyttsx3.init()
-            self._offline_engine.setProperty("rate", 170)
-        self._offline_engine.say(text)
-        self._offline_engine.runAndWait()
+        try:
+            if self._offline_engine is None:
+                self._offline_engine = pyttsx3.init()
+                self._offline_engine.setProperty("rate", 170)
+            self._offline_engine.say(text)
+            self._offline_engine.runAndWait()
+        except Exception as exc:
+            # A missing/locked SAPI voice must not crash the conversation loop.
+            print(f"[TTS Warning: Offline fallback unavailable - {exc}]")
         return b""

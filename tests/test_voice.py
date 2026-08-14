@@ -19,11 +19,14 @@ def test_stt_handles_empty_bytes() -> None:
     assert result == ""
 
 
-def test_tts_generates_audio_or_fallback() -> None:
+def test_tts_generates_audio() -> None:
     tts = EdgeTTSProvider()
-    # Test short text synthesis
+    async def synthesize(_: str, voice: str) -> bytes:
+        return b"audio"
+
+    tts._generate_edge_tts_bytes = synthesize  # type: ignore[method-assign]
     audio_bytes = tts.text_to_speech("Hello Aman")
-    assert audio_bytes is not None
+    assert audio_bytes == b"audio"
 
 
 def test_voice_pipeline_non_authoritative(owner_user: UserIdentity) -> None:
@@ -33,3 +36,29 @@ def test_voice_pipeline_non_authoritative(owner_user: UserIdentity) -> None:
     # Verify voice responses use chat() informational method
     response = agent.chat("Test voice prompt", user=owner_user)
     assert response is not None
+
+
+def test_streamed_sentence_is_spoken_before_response_stream_finishes(owner_user: UserIdentity) -> None:
+    class TTS:
+        def __init__(self) -> None:
+            self.completed = False
+            self.call_states: list[bool] = []
+
+        def text_to_speech(self, text: str) -> bytes:
+            self.call_states.append(not self.completed)
+            return b"audio"
+
+    class Player:
+        def play_bytes(self, _: bytes) -> bool:
+            return True
+
+    tts = TTS()
+    pipeline = VoicePipeline(agent=SANIAgent(), tts_provider=tts, player=Player())
+
+    def deltas():
+        yield "Hello Aman. "
+        tts.completed = True
+        yield "How are you?"
+
+    assert pipeline.speak_stream(deltas(), owner_user)
+    assert any(tts.call_states)

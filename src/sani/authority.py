@@ -76,6 +76,18 @@ class AuthorityEngine:
                 )
 
         # 3. Confirmation Requirement Check
+        if request.origin.value == "VOICE" and risk_level in (
+            ActionRiskLevel.SYSTEM_CHANGING,
+            ActionRiskLevel.DESTRUCTIVE,
+        ):
+            return AuthorityDecision(
+                decision=AuthorityDecisionType.REQUIRES_CONFIRMATION,
+                reason=f"Voice request for consequential action '{request.tool_name}' requires explicit confirmation.",
+                risk_level=risk_level,
+                user_identity=user,
+                action_name=request.tool_name,
+            )
+
         if risk_level == ActionRiskLevel.DESTRUCTIVE:
             return AuthorityDecision(
                 decision=AuthorityDecisionType.REQUIRES_CONFIRMATION,

@@ -17,12 +17,18 @@ def test_classify_chat_conversations(classifier: SmartIntentClassifier) -> None:
 
 def test_classify_voice_config_intents(classifier: SmartIntentClassifier) -> None:
     assert classifier.classify("Switch voice to Arya") == IntentCategory.CONFIG_VOICE
+    assert classifier.classify("voice change") == IntentCategory.CONFIG_VOICE
+    assert classifier.classify("change voice to Guy") == IntentCategory.CONFIG_VOICE
+    assert classifier.classify("Can you change your voice to guy?") == IntentCategory.CONFIG_VOICE
+    assert classifier.classify("Switch your voice to Guy") == IntentCategory.CONFIG_VOICE
+    assert classifier.classify("Change to Guy") == IntentCategory.CONFIG_VOICE
     assert classifier.classify("Can you show me voice options?") == IntentCategory.CONFIG_VOICE
     assert classifier.classify("प्रभात आवाज लगाओ") == IntentCategory.CONFIG_VOICE
 
 
 def test_classify_mic_config_intents(classifier: SmartIntentClassifier) -> None:
     assert classifier.classify("Show me microphone options") == IntentCategory.CONFIG_MIC
+    assert classifier.classify("mic change") == IntentCategory.CONFIG_MIC
     assert classifier.classify("Switch mic to 1") == IntentCategory.CONFIG_MIC
     assert classifier.classify("माइक्रोफोन के ऑप्शन दिखाओ") == IntentCategory.CONFIG_MIC
 
@@ -32,3 +38,7 @@ def test_classify_exit_intents(classifier: SmartIntentClassifier) -> None:
     assert classifier.classify("Can you please stop listening?") == IntentCategory.EXIT
     assert classifier.classify("take 5") == IntentCategory.EXIT
     assert classifier.classify("अलविदा") == IntentCategory.EXIT
+
+
+def test_project_audit_does_not_request_push(classifier: SmartIntentClassifier) -> None:
+    assert classifier.classify("Check project") == IntentCategory.PROJECT_AUDIT

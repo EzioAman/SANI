@@ -2,9 +2,10 @@
 
 import sys
 from sani.agent import SANIAgent
+from sani.command_router import CommandRouter
 from sani.config import get_config
 from sani.memory.sqlite_store import SQLiteMemoryStore
-from sani.models import Role, UserIdentity
+from sani.models import InputOrigin, Role, UserIdentity
 from sani.providers.llm_provider import GeminiProvider
 from sani.voice.pipeline import VoicePipeline
 
@@ -16,9 +17,10 @@ def main() -> None:
     # Initialize SQLite Memory Store & Core Agent
     memory_store = SQLiteMemoryStore()
     agent = SANIAgent(memory_provider=memory_store)
+    command_router = CommandRouter(agent)
 
     provider_name = "Google Gemini" if isinstance(agent.llm_provider, GeminiProvider) else "OpenAI"
-    key_status = "CONFIGURED (via .env / environment)" if (config.gemini_api_key or config.openai_api_key) else "NOT SET"
+    key_status = "CONFIGURED (via .env / environment)" if config.llm_api_key else "NOT SET"
 
     print(f"==================================================")
     print(f"  SANI Core Agent Baseline v0.1.0")
@@ -66,8 +68,12 @@ def main() -> None:
                 print("\nExited Voice Mode. Back to text prompt.")
                 continue
 
-            response = agent.chat(user_input, user=aman_identity)
-            print(f"SANI > {response}\n")
+            outcome = command_router.handle(user_input, aman_identity, origin=InputOrigin.TYPED)
+            if outcome.handled:
+                print(f"SANI > {outcome.message}\n")
+            else:
+                response = agent.chat(user_input, user=aman_identity)
+                print(f"SANI > {response}\n")
         except (KeyboardInterrupt, EOFError):
             print("\nSession ended.")
             break

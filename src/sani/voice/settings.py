@@ -55,7 +55,7 @@ class VoiceSettingsManager:
         self.save_settings()
 
     def test_microphone_hardware_confidence(self, device_index: int | None) -> tuple[bool, str]:
-        """Test reading a 100ms sample stream from microphone hardware with 100% confidence check."""
+        """Test whether a microphone can open and provide a short audio sample."""
         try:
             devices = sd.query_devices()
             if device_index is not None:

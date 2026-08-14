@@ -16,21 +16,27 @@ class SANIConfig(BaseModel):
     owner_name: str = Field(default="Aman", description="Primary owner and highest authority user.")
     
     # Model Provider Settings
+    llm_api_key: str = Field(
+        default_factory=lambda: (
+            os.getenv("LLM_API_KEY") or os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or os.getenv("OPENAI_API_KEY") or ""
+        ),
+        description="LLM API key loaded from LLM_API_KEY or fallback keys.",
+    )
     gemini_api_key: str = Field(
         default_factory=lambda: (
-            os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or ""
+            os.getenv("LLM_API_KEY") or os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or ""
         ),
-        description="Gemini API key loaded from GEMINI_API_KEY or GOOGLE_API_KEY.",
+        description="Gemini API key loaded from LLM_API_KEY, GEMINI_API_KEY, or GOOGLE_API_KEY.",
     )
     openai_api_key: str = Field(
-        default_factory=lambda: os.getenv("OPENAI_API_KEY", ""),
-        description="OpenAI API key loaded from OPENAI_API_KEY.",
+        default_factory=lambda: os.getenv("LLM_API_KEY") or os.getenv("OPENAI_API_KEY", ""),
+        description="OpenAI API key loaded from LLM_API_KEY or OPENAI_API_KEY.",
     )
     
     # Active Provider and Model Choice
     provider: str = Field(
         default_factory=lambda: (
-            "gemini" if (os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")) else "openai"
+            "gemini" if (os.getenv("LLM_API_KEY") or os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")) else "openai"
         ),
         description="Active provider choice ('gemini' or 'openai').",
     )
