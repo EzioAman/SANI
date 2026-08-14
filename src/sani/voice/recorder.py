@@ -1,13 +1,14 @@
-"""Audio Recording Subsystem with Microphone Selection & Silence Detection."""
+"""Audio Recording Subsystem with Live Terminal Volume Meter & Silence Detection."""
 
 import io
+import sys
 import wave
 import numpy as np
 import sounddevice as sd
 
 
 class AudioRecorder:
-    """Captures audio from microphone with device selection & automatic silence detection."""
+    """Captures audio from microphone with live ASCII level display & automatic silence detection."""
 
     def __init__(
         self,
@@ -28,17 +29,20 @@ class AudioRecorder:
     @staticmethod
     def get_available_microphones() -> list[dict]:
         """Return list of available input microphone devices."""
-        devices = sd.query_devices()
-        input_mics = []
-        for idx, dev in enumerate(devices):
-            if dev.get("max_input_channels", 0) > 0:
-                input_mics.append({
-                    "index": idx,
-                    "name": dev.get("name", "Unknown Microphone"),
-                    "channels": dev.get("max_input_channels"),
-                    "sample_rate": dev.get("default_samplerate"),
-                })
-        return input_mics
+        try:
+            devices = sd.query_devices()
+            input_mics = []
+            for idx, dev in enumerate(devices):
+                if dev.get("max_input_channels", 0) > 0:
+                    input_mics.append({
+                        "index": idx,
+                        "name": dev.get("name", "Unknown Microphone"),
+                        "channels": dev.get("max_input_channels"),
+                        "sample_rate": dev.get("default_samplerate"),
+                    })
+            return input_mics
+        except Exception:
+            return []
 
     def get_active_microphone_name(self) -> str:
         """Return name of active input microphone device."""
@@ -52,7 +56,7 @@ class AudioRecorder:
             default_input = sd.default.device[0]
             if default_input is not None and default_input >= 0:
                 info = sd.query_devices(default_input)
-                return f"Default ({info.get('name', 'System Microphone')})"
+                return f"Default (#{default_input}: {info.get('name', 'System Microphone')})"
         except Exception:
             pass
         return "Default Microphone"
@@ -62,9 +66,16 @@ class AudioRecorder:
         self.device_index = device_index
         return self.get_active_microphone_name()
 
+    def _render_volume_bar(self, rms: float) -> str:
+        """Render 10-segment ASCII audio level bar for live terminal visual feedback."""
+        max_scale = 0.06
+        filled = int(min(rms / max_scale, 1.0) * 10)
+        bar = "█" * filled + "░" * (10 - filled)
+        return f"[{bar}] RMS: {rms:.3f}"
+
     def record_until_silence(self, prompt_message: str = "Listening...") -> bytes:
-        """Record audio from active microphone until user stops speaking or max time is reached."""
-        print(f"\n[Voice] {prompt_message}")
+        """Record audio from active microphone with live visual level meter until silence is detected."""
+        print(f"\n[Voice Mic: {self.get_active_microphone_name()}] {prompt_message}")
         
         chunk_size = int(self.sample_rate * 0.1)  # 100ms chunks
         audio_chunks = []
@@ -81,23 +92,34 @@ class AudioRecorder:
         if self.device_index is not None:
             stream_kwargs["device"] = self.device_index
 
-        with sd.InputStream(**stream_kwargs) as stream:
-            for _ in range(max_total_chunks):
-                chunk, overflow = stream.read(chunk_size)
-                audio_chunks.append(chunk)
+        try:
+            with sd.InputStream(**stream_kwargs) as stream:
+                for _ in range(max_total_chunks):
+                    chunk, overflow = stream.read(chunk_size)
+                    audio_chunks.append(chunk)
 
-                # Calculate Root Mean Square (RMS) volume
-                rms = np.sqrt(np.mean(chunk**2))
+                    # Calculate Root Mean Square (RMS) volume
+                    rms = float(np.sqrt(np.mean(chunk**2)))
 
-                if rms > self.silence_threshold_rms:
-                    has_speech_started = True
-                    silent_chunks = 0
-                elif has_speech_started:
-                    silent_chunks += 1
-                    if silent_chunks >= max_silent_chunks:
-                        print("[Voice] Silence detected. Processing speech...")
-                        break
+                    # Live terminal audio level meter display
+                    level_display = self._render_volume_bar(rms)
+                    sys.stdout.write(f"\r  {level_display} | Status: {'Speaking...' if has_speech_started else 'Listening...'}")
+                    sys.stdout.flush()
 
+                    if rms > self.silence_threshold_rms:
+                        has_speech_started = True
+                        silent_chunks = 0
+                    elif has_speech_started:
+                        silent_chunks += 1
+                        if silent_chunks >= max_silent_chunks:
+                            sys.stdout.write(f"\r  {level_display} | Status: Silence detected. Processing...          \n")
+                            sys.stdout.flush()
+                            break
+        except Exception as e:
+            print(f"\n[AudioRecorder Hardware Error: {e}]")
+            return b""
+
+        sys.stdout.write("\n")
         if not audio_chunks:
             return b""
 

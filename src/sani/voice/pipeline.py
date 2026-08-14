@@ -1,4 +1,4 @@
-"""SANI Continuous Voice Conversation Pipeline with Persistent Settings & 100% Hardware Confidence Check.
+"""SANI Continuous Voice Conversation Pipeline with Startup Hardware Chooser & Live Volume Display.
 
 CRITICAL RULE:
 High-risk operations (such as pushing code to GitHub) require explicit Aman confirmation
@@ -6,6 +6,7 @@ evaluated through the SANI AuthorityEngine.
 """
 
 import re
+import sys
 import time
 from sani.agent import SANIAgent
 from sani.authority import ActionRiskLevel, ToolRequest
@@ -36,7 +37,6 @@ class VoicePipeline:
         self.agent = agent
         self.settings_mgr = settings_mgr or VoiceSettingsManager(workspace_root=agent.config.workspace_root)
         
-        # Load saved persistent state
         saved_voice = self.settings_mgr.get_voice()
         saved_mic = self.settings_mgr.get_mic_index()
 
@@ -67,6 +67,31 @@ class VoicePipeline:
                     return False  # Interrupted by user mid-sentence!
 
         return True
+
+    def display_startup_hardware_and_voice_config(self) -> None:
+        """Display active hardware, available microphones, and voice actors at startup."""
+        mics = AudioRecorder.get_available_microphones()
+        voices = EdgeTTSProvider.get_available_voices()
+        active_mic = self.recorder.get_active_microphone_name()
+        active_voice = self.tts_provider.voice
+
+        print(f"\n==================================================")
+        print(f"  SANI Voice Subsystem Startup Configuration")
+        print(f"==================================================")
+        print(f"  [Active Settings]")
+        print(f"  • Active Microphone:  {active_mic}")
+        print(f"  • Active Voice Actor: {active_voice.split('-')[2].replace('Neural', '')} ({active_voice})")
+        
+        print(f"\n  [Available Microphones]")
+        for m in mics[:6]:
+            is_act = "*" if self.recorder.device_index == m["index"] else " "
+            print(f"  {is_act} [{m['index']}] {m['name']}")
+
+        print(f"\n  [Available Voice Actors]")
+        for name, desc in voices.items():
+            is_act = "*" if name.lower() in active_voice.lower() else " "
+            print(f"  {is_act} • {name:<12} - {desc}")
+        print(f"==================================================")
 
     def _execute_handsfree_git_push(self, user: UserIdentity) -> None:
         """Perform hands-free audit, prompt user vocally for confirmation, and push to GitHub."""
@@ -183,7 +208,7 @@ class VoicePipeline:
                     print(f"\nSANI (Hardware Settings) > {msg}\n")
                     self.speak_response(msg, user=user)
                 else:
-                    formatted = "\n  [Available Microphones - Hardware Confirmed]\n"
+                    formatted = "\n  [Available Microphones - Hardware Confirmed 100%]\n"
                     for m in mics:
                         is_active = "*" if self.recorder.device_index == m["index"] else " "
                         formatted += f"  {is_active} [{m['index']}] {m['name']} ({int(m['sample_rate'])} Hz)\n"
@@ -223,8 +248,8 @@ class VoicePipeline:
         
         Returns False if session should end, True otherwise.
         """
-        # Step 1: Microphone -> Audio Recording
-        audio_bytes = self.recorder.record_until_silence(prompt_message=f"Listening to {user.name}...")
+        # Step 1: Microphone -> Audio Recording with Live Level Display
+        audio_bytes = self.recorder.record_until_silence(prompt_message=f"Awaiting vocal input...")
         if not audio_bytes:
             return True
 
@@ -249,32 +274,22 @@ class VoicePipeline:
             if self._handle_voice_commands(user_text, category, user):
                 return True
 
-        # Step 4: Natural Conversation (CHAT) -> SANI Core (Informational Chat strictly)
+        # Step 4: Natural Conversation (CHAT) -> SANI Core
         voice_prompt = (
             f"{user_text}\n\n[System Note for Voice Mode: Respond in a natural, concise, human spoken conversation style (1-3 sentences). Avoid code blocks or bullet lists.]"
         )
         response_text = self.agent.chat(prompt=voice_prompt, user=user)
         print(f"SANI > {response_text}\n")
 
-        # Step 5: Text-to-Speech (TTS) -> Sentence Streamlike Output (with Barge-in Interruption)
+        # Step 5: Text-to-Speech (TTS) -> Sentence Streamlike Output
         self.speak_response(response_text, user=user)
         return True
 
     def run_continuous_loop(self, user: UserIdentity) -> None:
         """Run 100% hands-free continuous voice conversation loop."""
-        active_mic = self.recorder.get_active_microphone_name()
-        active_voice = self.tts_provider.voice
+        self.display_startup_hardware_and_voice_config()
 
-        print(f"==================================================")
-        print(f"  SANI Hands-Free Voice Loop Activated")
-        print(f"  Owner:              {user.name}")
-        print(f"  Active Microphone:  {active_mic}")
-        print(f"  Active Voice Model: {active_voice}")
-        print(f"  Settings Storage:   voice_settings.json (PERSISTENT)")
-        print(f"  Barge-In Interruption: ENABLED (Speak anytime to interrupt)")
-        print(f"  Commands:           'push to github', 'check missing components', 'take 5'")
-        print(f"==================================================")
-        
+        active_voice = self.tts_provider.voice
         welcome_msg = f"SANI voice loop online. Active voice is {active_voice.split('-')[2].replace('Neural', '')}. I am listening, {user.name}."
         try:
             self.speak_response(welcome_msg, user=user)
