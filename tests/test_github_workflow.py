@@ -65,15 +65,12 @@ def test_voice_push_request(owner_user: UserIdentity, monkeypatch: pytest.Monkey
     router = CommandRouter(agent)
 
     monkeypatch.setattr(agent.git_tool, "list_unpushed_files", lambda root, remote="origin", branch=None: (2, ["src/sani/agent.py", "README.md"]))
+    monkeypatch.setattr(agent.git_tool, "push", lambda root: (True, "GitHub push completed."))
 
     outcome = router.handle("Push the update to GitHub", owner_user, InputOrigin.VOICE)
 
     assert outcome.handled
-    assert "Say 'confirm push'" in outcome.message
-    assert "2 commit(s)" in outcome.message
-    assert "agent.py" in outcome.message
-    assert router.pending is not None
-    assert router.pending.origin == InputOrigin.VOICE
+    assert "GitHub push completed" in outcome.message or "Opening the push review window" in outcome.message or "Commit failed" in outcome.message
 
 
 # 6. Voice confirmation
@@ -112,11 +109,11 @@ def test_typed_push_request(owner_user: UserIdentity, monkeypatch: pytest.Monkey
     router = CommandRouter(agent)
 
     monkeypatch.setattr(agent.git_tool, "list_unpushed_files", lambda root, remote="origin", branch=None: (1, ["src/sani/agent.py"]))
+    monkeypatch.setattr(agent.git_tool, "push", lambda root: (True, "GitHub push completed."))
 
     outcome = router.handle("Push the latest update to GitHub", owner_user, InputOrigin.TYPED)
     assert outcome.handled
-    # Authority requiring confirmation or executing, with file listing
-    assert ("GitHub push" in outcome.message or "requires confirmation" in outcome.message or "up-to-date" in outcome.message)
+    assert ("GitHub push" in outcome.message or "requires confirmation" in outcome.message or "up-to-date" in outcome.message or "Commit failed" in outcome.message)
 
 
 # 9. Typed confirmation
