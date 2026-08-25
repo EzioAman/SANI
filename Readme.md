@@ -295,24 +295,6 @@ The concepts explored in SANI may be revisited in the future using newer edge ha
 
 ---
 
-## Project Team
-
-SANI was collaboratively developed by:
-
-### Aman Sinha
-
-AI, Edge AI, system architecture, embedded systems, and project development.
-
-[GitHub](https://github.com/EzioAman) · [LinkedIn](https://www.linkedin.com/in/morfit2409/)
-
-### Saumya Suman
-
-AI/software development and project development.
-
-[GitHub](https://github.com/saumyaaa78) · [SANI Repository](https://github.com/saumyaaa78/SANI)
-
----
-
 ## Disclaimer
 
 SANI was developed as an engineering and research project exploring the application of AI on edge hardware.
