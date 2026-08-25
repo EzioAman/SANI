@@ -321,10 +321,18 @@ The documentation describes the project's architecture, research direction, and 
 
 ---
 
-## Author
+## Authors
 
-**Aman Sinha**
+SANI was collaboratively developed by:
 
-AI Engineer focused on **AI, Edge AI, intelligent automation, embedded systems, and computer vision**.
+### Aman Sinha
+
+AI, Edge AI, system architecture, embedded systems, and project development.
 
 [GitHub](https://github.com/EzioAman) · [LinkedIn](https://www.linkedin.com/in/morfit2409/)
+
+### Saumya Suman
+
+AI/software development and project development.
+
+[GitHub](https://github.com/saumyaaa78) · [SANI Repository](https://github.com/saumyaaa78/SANI)
