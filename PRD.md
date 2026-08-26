@@ -1,8 +1,8 @@
-# SANI — Technical Product Requirements Document
+# SANI — Technical Product Document
 
 ## 1. Product Overview
 
-SANI is a personal AI agent whose primary user and authority is Aman, while the architecture must support additional authenticated users/accounts in the future.
+SANI is a personal AI agent whose primary user are military and rescue operations, while the architecture must support additional authenticated users/accounts in the future.
 
 SANI is intended to become a persistent, voice-first AI system capable of natural conversation, current-information research, tool use, computer/environment understanding, code development, controlled self-modification, and long-running server operation.
 
